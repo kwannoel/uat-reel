@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hawker Kitchen</title>
+<style>
+  :root { --ink: #1c1917; --muted: #78716c; --line: #e7e5e4; --brand: #0f766e; --bg: #fafaf9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; background: #fff; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 20px; margin: 0; }
+  .cart { display: flex; gap: 12px; align-items: center; }
+  .badge { min-width: 28px; padding: 2px 8px; border-radius: 999px; background: var(--brand); color: #fff; font-weight: 700; text-align: center; }
+  main { max-width: 880px; margin: 32px auto; padding: 0 24px; }
+  .menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .dish { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .dish .art { height: 110px; border-radius: 8px; display: grid; place-items: center; font-size: 48px; }
+  .dish h3 { margin: 0; font-size: 17px; }
+  .dish p { margin: 0; color: var(--muted); font-size: 14px; }
+  button { font: inherit; border-radius: 8px; border: 1px solid var(--brand); background: var(--brand); color: #fff; padding: 8px 14px; cursor: pointer; }
+  button.secondary { background: #fff; color: var(--brand); }
+  form { margin-top: 32px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 24px; display: grid; gap: 14px; max-width: 480px; }
+  form[hidden] { display: none; }
+  label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
+  input, select { font: inherit; padding: 8px 10px; border: 1px solid #d6d3d1; border-radius: 8px; }
+  .error { color: #b91c1c; font-size: 14px; min-height: 1.2em; }
+  [role=status] { margin-top: 24px; padding: 16px; border-radius: 12px; background: #ecfdf5; border: 1px solid #a7f3d0; font-weight: 600; }
+  [role=status]:empty { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hawker Kitchen</h1>
+  <div class="cart">
+    <span>Cart</span>
+    <span class="badge" data-testid="cart-count">0</span>
+    <button class="secondary" id="checkout" disabled>Checkout</button>
+  </div>
+</header>
+<main>
+  <h2>Today's menu</h2>
+  <div class="menu">
+    <div class="dish"><div class="art" style="background:#fef3c7">🍜</div><h3>Laksa</h3><p>Spicy coconut noodle soup · $8.50</p><button data-dish="Laksa">Add Laksa</button></div>
+    <div class="dish"><div class="art" style="background:#fee2e2">🍗</div><h3>Chicken rice</h3><p>Poached chicken, fragrant rice · $6.00</p><button data-dish="Chicken rice">Add Chicken rice</button></div>
+    <div class="dish"><div class="art" style="background:#dcfce7">🥬</div><h3>Rojak</h3><p>Fruit and veg salad, prawn paste · $5.50</p><button data-dish="Rojak">Add Rojak</button></div>
+  </div>
+
+  <form id="order" hidden novalidate>
+    <h2 style="margin:0">Your details</h2>
+    <label>Name <input name="name" autocomplete="off"></label>
+    <label>Email <input name="email" type="email" autocomplete="off"></label>
+    <label>Pickup time
+      <select name="pickup">
+        <option value="">Choose a time</option>
+        <option value="12:00">12:00</option>
+        <option value="12:30">12:30</option>
+        <option value="13:00">13:00</option>
+      </select>
+    </label>
+    <div class="error" id="error"></div>
+    <button type="submit">Place order</button>
+  </form>
+  <div role="status" id="status"></div>
+</main>
+<script>
+  const cart = [];
+  const count = document.querySelector('[data-testid=cart-count]');
+  const checkout = document.getElementById('checkout');
+  const form = document.getElementById('order');
+  document.querySelectorAll('[data-dish]').forEach((b) => b.addEventListener('click', () => {
+    cart.push(b.dataset.dish);
+    count.textContent = String(cart.length);
+    checkout.disabled = false;
+  }));
+  checkout.addEventListener('click', () => { form.hidden = false; form.querySelector('input').focus(); });
+  form.addEventListener('input', () => { document.getElementById('error').textContent = ''; });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    const error = document.getElementById('error');
+    const missing = [];
+    if (!data.get('name')) missing.push('your name');
+    if (!/^[^@\s]+@[^@\s]+$/.test(data.get('email'))) missing.push('a valid email');
+    if (!data.get('pickup')) missing.push('a pickup time');
+    if (missing.length) {
+      error.textContent = `Please add ${missing.length > 1 ? missing.slice(0, -1).join(', ') + ' and ' + missing.at(-1) : missing[0]}.`;
+      return;
+    }
+    error.textContent = '';
+    form.hidden = true;
+    document.getElementById('status').textContent =
+      `Order #1042 confirmed for ${data.get('name')}: ${cart.join(', ')}. Pickup at ${data.get('pickup')}.`;
+    cart.length = 0;
+    count.textContent = '0';
+    checkout.disabled = true;
+  });
+</script>
+</body>
+</html>

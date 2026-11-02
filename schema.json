@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "baseUrl": {
+      "type": "string"
+    },
+    "viewport": {
+      "default": {
+        "width": 1280,
+        "height": 720
+      },
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "height": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "storageState": {
+      "description": "Playwright storage state file for a signed-in session",
+      "type": "string"
+    },
+    "acceptance": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "captions": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "cps": {
+          "default": 15,
+          "description": "Reading speed, characters per second",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minMs": {
+          "default": 1500,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "maxLineChars": {
+          "default": 42,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "maxLines": {
+          "default": 2,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "band": {
+          "default": true,
+          "description": "Burn captions into a black band under the page so they never cover the app",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "pacing": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "afterAction": {
+          "default": 500,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "boxHold": {
+          "default": 1200,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "typeDelay": {
+          "default": 45,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cursorMs": {
+          "default": 450,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tail": {
+          "default": 1000,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "style": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "boxColor": {
+          "default": "#ff1f3d",
+          "type": "string"
+        },
+        "boxWidth": {
+          "default": 3,
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "boxPadding": {
+          "default": 3,
+          "type": "number",
+          "minimum": 0
+        },
+        "dim": {
+          "default": 0.35,
+          "description": "Spotlight overlay opacity; 0 disables dimming",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "cursor": {
+          "default": true,
+          "type": "boolean"
+        },
+        "chapters": {
+          "default": true,
+          "description": "Title card at the start and before each scene",
+          "type": "boolean"
+        },
+        "sceneChip": {
+          "default": false,
+          "description": "Persistent corner chip with the scene title",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "scenes": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "covers": {
+            "default": [],
+            "description": "Acceptance criterion ids this scene demonstrates",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "steps": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "goto": {
+                  "description": "URL, absolute or relative to baseUrl / the storyboard file",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "click": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "fill": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "press": {
+                  "description": "Key or chord, e.g. Enter, Control+A",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "select": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "check": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "uncheck": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "hover": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "scroll": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "waitFor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "wait": {
+                  "description": "Milliseconds",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "expect": {
+                  "description": "Fails the recording unless the target becomes visible",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "highlight": {
+                  "description": "Red box around the target, no action",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "description": "Value for fill / select",
+                  "type": "string"
+                },
+                "on": {
+                  "description": "Element to focus before press",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "description": "Text the expect target must contain",
+                  "type": "string"
+                },
+                "secret": {
+                  "description": "fill only: value comes from an env var and must go into a password field; typed without animation",
+                  "type": "boolean"
+                },
+                "say": {
+                  "description": "Caption cue that starts at this step",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "box": {
+                  "description": "Red box around this step's target before acting; a string is its label",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  ]
+                },
+                "note": {
+                  "description": "Longer popover text under the box label",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pause": {
+                  "description": "Extra milliseconds after the step",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "steps"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "title",
+    "scenes"
+  ],
+  "additionalProperties": false
+}

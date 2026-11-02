@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../schema.json
+title: Hawker Kitchen guest checkout
+description: A guest orders lunch for pickup without an account.
+
+acceptance:
+  - id: AC1
+    text: A guest can add dishes and the cart count updates
+  - id: AC2
+    text: Checkout rejects an order with missing details
+  - id: AC3
+    text: A complete order is confirmed with the dishes and pickup time
+
+scenes:
+  - id: add-dishes
+    title: Add dishes to the cart
+    covers: [AC1]
+    steps:
+      - goto: ./demo-app/index.html
+        say: A guest opens the Hawker Kitchen menu.
+      - click: role=button[name="Add Laksa"]
+        box: true
+        say: They add a bowl of laksa.
+      - click: role=button[name="Add Chicken rice"]
+        box: true
+        say: Then a plate of chicken rice.
+      - expect: "[data-testid=cart-count]"
+        text: "2"
+        box: Two items in the cart
+        say: The cart count goes up to two.
+
+  - id: missing-details
+    title: Missing details are rejected
+    covers: [AC2]
+    steps:
+      - click: role=button[name="Checkout"]
+        box: true
+        say: The guest goes to checkout.
+      - fill: role=textbox[name="Name"]
+        value: Mei Ling
+        say: They enter a name but nothing else.
+      - click: role=button[name="Place order"]
+        box: Only a name filled in
+        say: They try to place the order.
+      - expect: "#error"
+        text: Please add a valid email and a pickup time.
+        box: Validation error
+        note: The order is not placed until an email and pickup time are added.
+        say: Checkout asks for the missing details.
+
+  - id: confirm-order
+    title: Place a complete order
+    covers: [AC3]
+    steps:
+      - fill: role=textbox[name="Email"]
+        value: meiling@example.com
+        say: They add an email address.
+      - select: role=combobox[name="Pickup time"]
+        value: "12:30"
+        box: true
+        say: And choose a 12:30 pickup.
+      - click: role=button[name="Place order"]
+        box: All details filled in
+        say: This time the order goes through.
+      - expect: role=status
+        text: Pickup at 12:30
+        box: Order confirmed
+        note: Lists both dishes and the pickup time.
+        say: The confirmation lists both dishes and the pickup time.
+      - expect: "[data-testid=cart-count]"
+        text: "0"
+        box: Cart cleared
+        say: The cart is emptied, ready for the next order.
