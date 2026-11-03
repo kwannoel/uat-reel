@@ -26,11 +26,30 @@ Built on [Playwright](https://playwright.dev) (actions and recording) and
 
 ## Quick start
 
-Requirements: Node 20+, and ffmpeg built with libass (`brew install ffmpeg` or `apt install ffmpeg`).
+Requirements:
+
+- **macOS or Linux.** Tested on macOS and on Debian 12 (arm64). Windows isn't supported: services stop
+  through POSIX process groups, and `reproduce.sh` is a bash script. WSL is untested.
+- **Node 20+.**
+- **ffmpeg built with libass**, for the burned-in captions: `brew install ffmpeg` on macOS,
+  `apt install ffmpeg` on Debian and Ubuntu.
+- **Chromium from Playwright.** On Linux, `npx playwright install --with-deps chromium` also installs
+  its system libraries.
+- **A font, on Linux.** Captions and the overlay need at least one; minimal images often have none
+  (`apt install fonts-dejavu-core`).
+
+On a Debian or Ubuntu CI runner:
+
+```bash
+apt-get install -y ffmpeg fonts-dejavu-core
+npx playwright install --with-deps chromium
+```
+
+Then:
 
 ```bash
 npm i -D uat-reel
-npx playwright install chromium
+npx playwright install chromium                      # --with-deps on Linux
 npx uat-reel init uat/checkout.storyboard.yaml
 npx uat-reel rehearse uat/checkout.storyboard.yaml   # fast, no video, screenshots of every box
 npx uat-reel record uat/checkout.storyboard.yaml     # out/checkout/video.mp4 + review pack
@@ -270,6 +289,7 @@ if (!manifest.ok) throw new Error(manifest.error?.message);
 - The recording browser runs with `bypassCSP`, so the overlay works on apps with a strict
   Content-Security-Policy. This affects only the recording browser, never your app.
 - Chromium only.
+- macOS and Linux only; not Windows.
 - No voice-over.
 - One box at a time (use consecutive `highlight` steps instead).
 - Caption timestamps come from wall-clock time measured against the start of the screencast. They're
