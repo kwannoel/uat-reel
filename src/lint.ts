@@ -1,5 +1,6 @@
 import { wrap } from "./captions.js";
 import { actionOf, targetOf, type Storyboard } from "./schema.js";
+import { varsUsed } from "./vars.js";
 
 export interface LintFinding {
   level: "error" | "warn";
@@ -24,20 +25,40 @@ export function lint(sb: Storyboard): LintFinding[] {
   }
   const covered = new Set<string>();
   const sceneIds = new Set<string>();
+  const captured = new Set<string>();
+  const actorNames = Object.keys(sb.actors ?? {});
+
+  if (sb.scenes.every((scene) => scene.offCamera)) err("scenes", "every scene is off camera, so nothing is recorded");
+  for (const [name, actor] of Object.entries(sb.actors ?? {})) {
+    (actor.signIn ?? []).forEach((step, i) => {
+      const where = `actors.${name}.signIn[${i}]`;
+      if (step.say || step.box !== undefined) warn(where, "sign-in runs off camera; its captions and boxes are never seen");
+      if (actionOf(step) === "capture") err(where, "capture in sign-in; capture in a scene so the order of values is clear");
+      for (const name of varsUsed(step)) err(where, `{{${name}}} in sign-in; sign-in runs before any capture`);
+    });
+  }
 
   for (const scene of sb.scenes) {
     const at = `scenes.${scene.id}`;
     if (sceneIds.has(scene.id)) err(at, "duplicate scene id");
     sceneIds.add(scene.id);
 
+    if (actorNames.length > 0 && scene.actor === undefined) err(at, `scene needs an actor (${actorNames.join(", ")})`);
+    if (scene.actor !== undefined && !actorNames.includes(scene.actor)) {
+      err(at, actorNames.length ? `unknown actor ${scene.actor}` : "actor needs an actors: section");
+    }
+    if (scene.offCamera && scene.covers.length > 0) {
+      err(at, "an off-camera scene cannot prove acceptance criteria; nobody sees it");
+    }
+
     for (const id of scene.covers) {
       if (!acceptanceIds.has(id)) err(at, `covers unknown acceptance id ${id}`);
       covered.add(id);
     }
-    if (sb.acceptance.length > 0 && scene.covers.length === 0) {
+    if (sb.acceptance.length > 0 && scene.covers.length === 0 && !scene.offCamera) {
       warn(at, "scene covers no acceptance criterion; is it needed?");
     }
-    if (scene.steps.length > MAX_STEPS_PER_SCENE) {
+    if (scene.steps.length > MAX_STEPS_PER_SCENE && !scene.offCamera) {
       warn(at, `${scene.steps.length} steps; split scenes over ${MAX_STEPS_PER_SCENE} so viewers keep their place`);
     }
 
@@ -47,6 +68,13 @@ export function lint(sb: Storyboard): LintFinding[] {
     scene.steps.forEach((step, i) => {
       const where = `${at}.steps[${i}]`;
       const action = actionOf(step);
+      for (const name of varsUsed(step)) {
+        if (!captured.has(name)) err(where, `{{${name}}} is used before any step captures it`);
+      }
+      if (action === "capture" && step.as) captured.add(step.as);
+      if ((scene.offCamera || step.offCamera) && (step.say || step.box !== undefined)) {
+        warn(where, "off camera: this caption or box is never seen");
+      }
 
       if (step.say) {
         sawSay = true;
@@ -58,7 +86,7 @@ export function lint(sb: Storyboard): LintFinding[] {
         }
         const words = step.say.trim().split(/\s+/).length;
         if (words > MAX_CAPTION_WORDS) warn(where, `caption has ${words} words; aim for ${MAX_CAPTION_WORDS} or fewer`);
-      } else if (action && action !== "wait") {
+      } else if (action && action !== "wait" && !scene.offCamera && !step.offCamera) {
         silent += 1;
         if (silent === SILENT_STEPS) warn(where, `${SILENT_STEPS} steps in a row without a caption`);
       }
@@ -80,7 +108,7 @@ export function lint(sb: Storyboard): LintFinding[] {
       }
     });
 
-    if (!sawSay) warn(at, "scene has no caption");
+    if (!sawSay && !scene.offCamera) warn(at, "scene has no caption");
     if (scene.covers.length > 0 && !sawExpect) {
       err(at, "scene claims acceptance coverage but has no expect step to prove it");
     }

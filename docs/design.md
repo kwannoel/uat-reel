@@ -67,7 +67,10 @@ tune waits by hand. Every `box` holds for `pacing.boxHold`.
 1. Load YAML, then check the zod schema, then lint (errors abort).
 2. Launch Chromium. A context init script installs driver.js, its CSS, and the uat-reel overlay
    (`window.__uatReel`) on every document, so overlays survive navigation.
-3. `page.screencast.start({ path, size, quality, fps })`, then `t0`.
+3. Each scene: run any leading `goto` first and wait for the network to go idle (at most 5 s), so a
+   single-page app has finished rendering under the chapter card; then start a segment with
+   `page.screencast.start({ path, size, quality, fps })` on that scene's actor page (see
+   [Recording segments](#recording-segments-and-jump-cuts)).
 4. For each scene: a scene chip in the corner, then the steps. Each step:
    `say` (flushing the previous cue's minimum time) → `box` (scroll into view, driver.js spotlight and
    popover, a red box tracked with requestAnimationFrame, hold) → synthetic cursor glides to the target →
@@ -79,7 +82,7 @@ tune waits by hand. Every `box` holds for `pacing.boxHold`.
 5. Every event is timestamped relative to `t0` into `manifest.json`.
 6. On failure: `failure.png`, the error goes into the manifest, the video is still finalised, exit 1. A
    failed UAT recording is evidence too.
-7. Post (ffmpeg): `captions.srt` and `captions.vtt` → `video.mp4` with captions burned in (libass)
+7. Post (ffmpeg): segments joined into `raw.mp4` → `captions.srt` and `captions.vtt` → `video.mp4` with captions burned in (libass)
    into a black band padded under the page (`captions.band`), so captions never cover the app →
    `video.clean.mp4` with soft `mov_text` subs → review pack. The closing cue is held through the tail.
 
@@ -90,6 +93,95 @@ pointer events.
 
 Playwright videos do not show a cursor, so the overlay draws one. Without it a viewer can't tell what was
 clicked.
+
+## Actors, captures and off-camera work
+
+Some flows need more than one person: a buyer orders in a shop, a supplier refunds it in a back
+office, and the buyer sees the refund. Each person is an **actor**:
+
+```yaml
+actors:
+  buyer:
+    baseUrl: ${SHOP_URL}
+    signIn:                       # runs off camera before the actor's first scene
+      - goto: /sign-in
+      - fill: role=textbox[name="Email"]
+        value: ${BUYER_EMAIL}
+      - fill: "[data-testid=sign-in-password]"
+        value: ${BUYER_PASSWORD}
+        secret: true
+      - click: role=button[name="Sign in"]
+  supplier:
+    baseUrl: ${ERP_URL}
+    storageState: supplier.json   # or a saved session
+scenes:
+  - id: order
+    actor: buyer
+    steps:
+      - capture: "[data-testid=order-number]"
+        as: order
+  - id: refund
+    actor: supplier
+    steps:
+      - click: role=link[name="{{order}}"]
+```
+
+- Each actor has its own browser context and page for the whole run, so sessions never mix, even on
+  one host. When `actors` is absent, the storyboard's `baseUrl` and `storageState` form a single
+  implicit actor and scenes need no `actor`.
+- `capture: <selector>` with `as: <name>` stores the element's text, or a form field's value, at run
+  time. `pattern` keeps only a regular expression's first group. `{{name}}` inserts it into any later
+  string, including selectors, `goto`, `value` and captions. Lint rejects a `{{name}}` used before its
+  capture.
+- `offCamera: true` on a step or a scene runs it without recording. An off-camera scene moves the app
+  along (for example, an approval the film only mentions) and gets no chapter. Chapter cards number
+  only the scenes on camera, so the film shows no gaps. Lint warns about
+  captions and boxes nobody will see, and rejects `covers` on an off-camera scene.
+
+## Recording segments and jump cuts
+
+The camera records in **segments**: `page.screencast.start` and `stop` on the scene's page. Every
+scene is at least one segment, a new segment starts after every off-camera step, and:
+
+- **Jump cuts.** When an action or expect waits on the app for longer than `pacing.cutAfter`
+  (default 1000 ms; 0 disables), the screencast stops until the wait ends. The viewer sees a cut
+  instead of a spinner. `manifest.cuts` and `REVIEW.md` list every cut.
+- **One film clock.** Manifest times advance only while a segment records, so they are film times.
+  Playwright pads each segment file with about a second of its last frame; post-processing trims every
+  segment to its recorded length (`outpoint`) and joins them into `raw.mp4`.
+- **Reshoots.** Each scene's segments and events are saved under `scenes/`. `record --from <scene>`
+  replays the earlier scenes unrecorded and at rehearse speed, to rebuild app state and captures, then
+  records the named scene and every later one, and joins them with the saved earlier segments.
+- **Setup.** `setup:` lists commands (an executable and its arguments, no shell) that run before every
+  rehearse and record, for example a database reset and fixture load. `--no-setup` skips them.
+  `--from` needs setup, or `--no-setup` to replay on the current state deliberately.
+
+## Reproduce script
+
+Every rehearse and record writes `reproduce.sh` and `storyboard.yaml` into its output folder, so the
+take can be rerun from the folder alone, after the storyboard has moved on.
+
+- `storyboard.yaml` is the storyboard source as run: env references unexpanded, so it holds no secret.
+- `reproduce.sh` reruns the same command (`record` or `rehearse`, never `--from`: it always reshoots the
+  whole film) on that copy, with the options that changed the take (`--base-url`, `--timeout`,
+  `--no-post`, `--no-setup`). Extra arguments pass through, and a later `--out` wins.
+- **Folder.** Setup commands, relative URLs and `storageState` resolve against the storyboard's
+  folder, recorded relative to the script so a checkout in another place works. `--dir <folder>` sets
+  it; `UAT_REEL_DIR` overrides it in the script.
+- **Environment.** Every variable the storyboard reads is exported with the value this take used, unless
+  the caller has set it. A variable is never written down, and the script stops until it is set, when a
+  `secret` step reads it, its name contains `PASSWORD`, `SECRET`, `TOKEN` or `KEY`, or its value holds URL
+  credentials (`://user:pass@`). Variables that were unset keep their storyboard fallback.
+- **Tool.** The header records the uat-reel version and, for a git checkout, its commit and whether it had
+  uncommitted changes, plus the Playwright and ffmpeg versions. The script runs the uat-reel that made
+  the take when it is still at the same path, else `npx uat-reel@<version>`; `UAT_REEL` overrides
+  both. It warns when the version differs.
+- `manifest.reproduce` holds the same facts and the storyboard's SHA-256.
+
+The script reproduces the inputs, not the bytes: app speed, clock times on screen and the app's own
+data are outside uat-reel, so `setup` should reset the app. Setup commands also inherit the rest of the
+caller's environment (`PATH`, `USER` for a local Postgres login); name anything else they need in the
+storyboard so the script records it.
 
 ## Rehearse mode
 

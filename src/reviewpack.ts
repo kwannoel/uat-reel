@@ -73,6 +73,9 @@ export async function buildReviewPack(out: string): Promise<string> {
     "",
     `- Video: \`${video}\`, ${sec(videoMs)}, page viewport ${manifest.viewport.width}×${manifest.viewport.height}`,
     `- Recorded: ${manifest.startedAt} with uat-reel ${manifest.version}`,
+    ...(manifest.reproduce
+      ? [`- Reproduce: \`bash ${manifest.reproduce.script}\` reshoots the whole film${manifest.reproduce.secrets.length ? `; set ${manifest.reproduce.secrets.join(", ")} first` : ""}`]
+      : []),
     `- Result: ${manifest.ok ? "all steps and expects passed" : `**FAILED** at scene \`${manifest.error?.scene}\` step ${(manifest.error?.step ?? 0) + 1}: ${manifest.error?.message}`}`,
     `- Contact sheets: \`review/contact-NN.jpg\`, one tile every ${CONTACT_EVERY_SEC}s, timestamp top-left`,
     "",
@@ -81,7 +84,8 @@ export async function buildReviewPack(out: string): Promise<string> {
     "| # | Scene | Covers | Start | Length |",
     "|---|---|---|---|---|",
     ...manifest.scenes.map(
-      (s, i) => `| ${i + 1} | ${s.title} (\`${s.id}\`) | ${s.covers.join(", ") || "—"} | ${sec(s.start)} | ${sec(s.end - s.start)} |`,
+      (s, i) =>
+        `| ${i + 1} | ${s.title} (\`${s.id}\`)${s.actor ? `, as ${s.actor}` : ""} | ${s.covers.join(", ") || "—"} | ${s.offCamera ? "off camera" : sec(s.start)} | ${s.offCamera ? "—" : sec(s.end - s.start)} |`,
     ),
     "",
     "## Expected vs actual",
@@ -96,13 +100,21 @@ export async function buildReviewPack(out: string): Promise<string> {
     "",
     ...(manifest.expects.length
       ? manifest.expects.map(
-          (e) => `- ${e.ok ? "pass" : "**FAIL**"} ${sec(e.t)} \`${e.target}\`${e.text ? ` contains "${e.text}"` : " visible"} (${e.scene})`,
+          (e) => `- ${e.ok ? "pass" : "**FAIL**"} ${sec(e.t)} \`${e.target}\`${e.hidden ? " gone" : e.text ? ` contains "${e.text}"` : " visible"} (${e.scene})`,
         )
       : ["- none"]),
     "",
     "## Timing",
     "",
     ...(timing.length ? timing : ["- No short cues, and no caption gaps over 4s."]),
+    "",
+    "## Jump cuts",
+    "",
+    "Waits on the app longer than `pacing.cutAfter` are cut. Check that each cut does not hide a state the viewer needs.",
+    "",
+    ...((manifest.cuts ?? []).length
+      ? manifest.cuts.map((c) => `- ${sec(c.t)}: ${sec(c.ms)} of waiting removed (${c.scene} step ${c.step + 1})`)
+      : ["- none"]),
     "",
   ].join("\n");
   await writeFile(join(dir, "REVIEW.md"), md);

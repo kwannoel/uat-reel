@@ -192,3 +192,200 @@ ${steps}`;
     expect(parseStoryboard(sb(`      - fill: "#pw"\n        value: \${PW}\n        secret: true`), "x", { env: { PW: "s3cret" } }).scenes[0]!.steps[0]!.value).toBe("s3cret");
   });
 });
+
+describe("actors, captures and off-camera work", () => {
+  const story = (body: string) => `title: T
+actors:
+  buyer:
+    baseUrl: http://localhost:1
+  seller:
+    baseUrl: http://localhost:2
+scenes:
+${body}`;
+
+  it("parses actors, capture and off-camera scenes", async () => {
+    const sb = parseStoryboard(
+      story(`  - id: a
+    title: A
+    actor: buyer
+    steps:
+      - capture: "[data-testid=order]"
+        as: order
+        pattern: "(ORD-\\\\d+)"
+  - id: b
+    title: B
+    actor: seller
+    offCamera: true
+    steps:
+      - click: role=link[name="{{order}}"]`),
+    );
+    expect(sb.scenes[1]!.offCamera).toBe(true);
+    expect(sb.pacing.cutAfter).toBe(1000);
+    expect(lint(sb).filter((f) => f.level === "error")).toEqual([]);
+  });
+
+  it("rejects capture without as, and as without capture", () => {
+    expect(() => parseStoryboard(story(`  - id: a\n    title: A\n    actor: buyer\n    steps:\n      - capture: "#x"`))).toThrow(/capture needs as/);
+    expect(() => parseStoryboard(story(`  - id: a\n    title: A\n    actor: buyer\n    steps:\n      - click: "#x"\n        as: y`))).toThrow(/as and pattern only apply to capture/);
+  });
+
+  it("lints actors, variable order and off-camera captions", () => {
+    const sb = parseStoryboard(
+      story(`  - id: a
+    title: A
+    steps:
+      - click: role=link[name="{{order}}"]
+  - id: b
+    title: B
+    actor: nobody
+    steps:
+      - goto: /
+  - id: c
+    title: C
+    actor: buyer
+    offCamera: true
+    steps:
+      - goto: /
+        say: Nobody reads this.`),
+    );
+    const found = lint(sb).map((f) => `${f.level} ${f.where} ${f.message}`);
+    expect(found).toContain("error scenes.a scene needs an actor (buyer, seller)");
+    expect(found).toContain("error scenes.a.steps[0] {{order}} is used before any step captures it");
+    expect(found).toContain("error scenes.b unknown actor nobody");
+    expect(found).toContain("warn  scenes.c.steps[0] off camera: this caption or box is never seen".replace("warn  ", "warn "));
+  });
+
+  it("refuses a literal secret in an actor's sign-in", () => {
+    expect(() =>
+      parseStoryboard(`title: T
+actors:
+  a:
+    signIn:
+      - fill: "#pw"
+        value: hunter2
+        secret: true
+scenes:
+  - id: x
+    title: X
+    actor: a
+    steps:
+      - goto: /`),
+    ).toThrow(/actors\.a\.signIn\[0\]: secret value must be a single env reference/);
+  });
+
+  it("interpolates captured values and keeps pattern groups", async () => {
+    const { interpolate, captured, varsUsed } = await import("../src/vars.js");
+    const step = { click: 'role=button[name="Refund {{order}}"]', say: "Refund {{ order }}." };
+    expect(varsUsed(step)).toEqual(["order"]);
+    expect(interpolate(step, { order: "ORD-7" })).toEqual({ click: 'role=button[name="Refund ORD-7"]', say: "Refund ORD-7." });
+    expect(() => interpolate(step, {})).toThrow(/used before any step captured it/);
+    expect(captured("  Order ORD-12 placed ", "(ORD-\\d+)")).toBe("ORD-12");
+    expect(captured(" 185.30 ", undefined)).toBe("185.30");
+    expect(() => captured("none", "(ORD-\\d+)")).toThrow(/does not match/);
+  });
+
+  it("trims each segment to its recorded length when joining", async () => {
+    const { joinList } = await import("../src/media.js");
+    expect(joinList([{ file: "scenes/a-001.webm", ms: 10266 }, { file: "scenes/it's.webm", ms: 0 }])).toBe(
+      "ffconcat version 1.0\nfile 'scenes/a-001.webm'\noutpoint 10.266\nfile 'scenes/it'\\''s.webm'\noutpoint 0.001\n",
+    );
+  });
+});
+
+describe("hidden expects", () => {
+  it("accepts hidden on expect and waitFor only, without text or box", () => {
+    const one = (step: string) => `title: T\nscenes:\n  - id: a\n    title: A\n    steps:\n${step}`;
+    expect(parseStoryboard(one(`      - expect: role=dialog\n        hidden: true`)).scenes[0]!.steps[0]!.hidden).toBe(true);
+    expect(() => parseStoryboard(one(`      - click: "#x"\n        hidden: true`))).toThrow(/hidden only applies to expect and waitFor/);
+    expect(() => parseStoryboard(one(`      - expect: role=dialog\n        hidden: true\n        text: x`))).toThrow(/nothing to show/);
+  });
+});
+
+describe("off-camera lint", () => {
+  it("does not ask an off-camera scene for captions, coverage or brevity", () => {
+    const steps = Array.from({ length: 16 }, () => "      - click: \"#x\"").join("\n");
+    const sb = parseStoryboard(`title: T
+acceptance:
+  - id: AC1
+    text: works
+scenes:
+  - id: a
+    title: A
+    offCamera: true
+    steps:
+${steps}
+  - id: b
+    title: B
+    covers: [AC1]
+    steps:
+      - expect: text=Done
+        say: Done.`);
+    expect(lint(sb).filter((f) => f.where.startsWith("scenes.a"))).toEqual([]);
+  });
+});
+
+describe("reproduce script", () => {
+  it("finds env references and which a secret step reads", async () => {
+    const { envRefs } = await import("../src/env.js");
+    const { parse } = await import("yaml");
+    const refs = envRefs(
+      parse(`
+baseUrl: \${APP_URL:-http://x}
+setup: [[reset, "\${DB_URL}"]]
+note: "$\${LITERAL}"
+scenes:
+  - steps:
+      - fill: "#p"
+        value: \${APP_PASSWORD}
+        secret: true
+`),
+    );
+    expect(refs).toEqual({ names: ["APP_PASSWORD", "APP_URL", "DB_URL"], secret: ["APP_PASSWORD"] });
+  });
+
+  it("never writes a secret down", async () => {
+    const { isSecretEnv } = await import("../src/reproduce.js");
+    expect(isSecretEnv("PIN", "1", ["PIN"])).toBe(true);
+    expect(isSecretEnv("API_TOKEN", "t", [])).toBe(true);
+    expect(isSecretEnv("DATABASE_URL", "postgres://u:hunter2@db/x", [])).toBe(true);
+    expect(isSecretEnv("DATABASE_URL", "postgres://localhost:5432/x", [])).toBe(false);
+  });
+
+  it("quotes values, keeps the folder relative and passes the take's options", async () => {
+    const { reproduceScript } = await import("../src/reproduce.js");
+    const { execFileSync } = await import("node:child_process");
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const script = reproduceScript({
+      title: "It's done",
+      mode: "record",
+      startedAt: "2026-11-03T00:00:00.000Z",
+      out: "/work/app/out/film",
+      dir: "/work/app/films",
+      args: ["--timeout", "20000"],
+      env: { NAME: "O'Brien $HOME", UNSET: undefined, PASS: "x" },
+      secrets: ["PASS"],
+      reproduction: {
+        script: "reproduce.sh",
+        storyboard: "storyboard.yaml",
+        source: "../../films/film.storyboard.yaml",
+        sha256: "abc",
+        uatReel: { version: "0.1.0" },
+        playwright: "1.64.1",
+        secrets: ["PASS"],
+      },
+    });
+    expect(script).toContain(`dir="\${UAT_REEL_DIR:-$here/../../films}"`);
+    expect(script).toContain("# UNSET was unset");
+    expect(script).not.toContain("PASS='x'");
+    expect(script).toMatch(/exec "\$\{uat_reel\[@\]\}" record "\$here\/storyboard.yaml" --dir "\$dir" --out "\$here" '--timeout' '20000' "\$@"$/m);
+    const file = join(mkdtempSync(join(tmpdir(), "uat-reel-sh-")), "reproduce.sh");
+    writeFileSync(file, script);
+    execFileSync("/bin/bash", ["-n", file]);
+    // The quoted value survives bash intact.
+    const head = script.split("\nif [[ -n \"${UAT_REEL")[0]!.replace(/^: .*$/m, "");
+    writeFileSync(file, `${head}\nprintf %s "$NAME"\n`);
+    expect(execFileSync("/bin/bash", [file], { encoding: "utf8", env: { PATH: process.env.PATH } })).toBe("O'Brien $HOME");
+  });
+});

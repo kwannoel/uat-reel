@@ -32,6 +32,12 @@ Collect these, and ask the user for any you cannot find in the repo:
   `storageState:` at a saved session. Never type real personal credentials. Never put a secret in the
   storyboard; use `${ENV}` references for credentials and for anything that differs between
   environments (`baseUrl: ${UAT_BASE_URL}`).
+- **People and apps.** If the flow crosses people or apps (a buyer and a supplier, a shop and a back
+  office), give each its own `actors:` entry and set `actor:` on every scene. Steps another person takes
+  that the video only mentions go in an `offCamera: true` scene. Use `capture` + `{{name}}` to follow
+  the same record (an order number) across actors instead of picking "the first row".
+- **Resetting state.** Put the commands that reset the app's data under `setup:`, so every rehearse and
+  record starts from the same state and `record --from <scene>` can reshoot one scene.
 - **Tooling.** Node 20+, `ffmpeg` with libass (`ffmpeg -filters | grep subtitles`), and then:
   ```bash
   npm i -D uat-reel && npx playwright install chromium
@@ -164,6 +170,8 @@ separate, explicit pass. Label it **self-review (not independent)** in the log a
 Report to the user:
 
 - the paths to `video.mp4`, `video.clean.mp4`, the captions and `REVIEW.md`;
+- `reproduce.sh` from the output folder, which reshoots the film, and the secrets it needs set. Ship it
+  with the film wherever the film goes;
 - each acceptance criterion with its scene and the timestamp of its proof frame (from `REVIEW.md`);
 - the gate verdicts and the rounds each one took (link `uat/<slug>.reviews.md`);
 - anything a reviewer raised that you didn't fix, and why;

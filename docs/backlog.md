@@ -5,9 +5,7 @@ SPA with server-side cart and session state). Fixed items are recorded in git hi
 
 ## Real-app gaps
 
-- **Setup and teardown hooks.** App state outlives a recording. The FoodX cart is stored on the
-  server, so a run that fails midway leaves items in the cart, and the next run's `Cart (2)` expect
-  fails. Needs `setup:`/`teardown:` commands, or API calls to reset state before scene 1.
+- **Teardown hooks.** `setup:` now resets state before a run; nothing yet runs after one.
 - **Popover placement.** Callouts sometimes cover a neighbouring proof or the next control: the
   salmon line in the cart, and "Place order" under the payment note. Add a per-step `side:`
   (top/right/bottom/left), or pick a side automatically away from the next step's target.

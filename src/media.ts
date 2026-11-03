@@ -1,4 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 export function hasFfmpeg(): boolean {
   return spawnSync("ffmpeg", ["-hide_banner", "-version"], { stdio: "ignore" }).status === 0;
@@ -86,4 +88,21 @@ export async function contactSheets(video: string, pattern: string, everySec: nu
     // drawtext needs a usable default font; fall back to unstamped sheets rather than none.
     await ffmpeg(["-i", video, "-vf", tail, "-fps_mode", "vfr", "-q:v", "3", pattern], cwd);
   }
+}
+
+/**
+ * Joins recorded segments in order, each cut at its recorded length (Playwright pads every file with
+ * about a second of its last frame), into one H.264 file. Paths are relative to `cwd`.
+ */
+export async function joinSegments(segments: { file: string; ms: number }[], out: string, cwd: string): Promise<void> {
+  await writeFile(join(cwd, "segments.ffconcat"), joinList(segments));
+  await ffmpeg(["-f", "concat", "-safe", "0", "-i", "segments.ffconcat", ...H264, "-an", out], cwd);
+}
+
+export function joinList(segments: { file: string; ms: number }[]): string {
+  const lines = ["ffconcat version 1.0"];
+  for (const s of segments) {
+    lines.push(`file '${s.file.replace(/'/g, "'\\''")}'`, `outpoint ${(Math.max(1, s.ms) / 1000).toFixed(3)}`);
+  }
+  return `${lines.join("\n")}\n`;
 }

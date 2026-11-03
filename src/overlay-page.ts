@@ -46,13 +46,23 @@ export function installOverlay(args: { driverCss: string }): void {
     (document.head ?? document.documentElement).appendChild(style);
   }
 
+  /**
+   * Where overlay nodes live: the topmost open modal <dialog> when there is one, because the browser
+   * paints it in the top layer above everything in <body>, otherwise <body>.
+   */
+  function host(): HTMLElement {
+    const modals = document.querySelectorAll<HTMLDialogElement>("dialog:modal");
+    return modals[modals.length - 1] ?? document.body;
+  }
+
   function el<T extends HTMLElement>(id: string, tag = "div"): T {
     let node = document.getElementById(id) as T | null;
     if (!node) {
       node = document.createElement(tag) as T;
       node.id = id;
-      document.body.appendChild(node);
     }
+    const parent = host();
+    if (node.parentElement !== parent) parent.appendChild(node);
     return node;
   }
 
@@ -127,6 +137,11 @@ export function installOverlay(args: { driverCss: string }): void {
     }
     // Let driver.js finish its stage animation before the caller starts the hold.
     await sleep(opts.dim > 0 || popover ? 350 : 60);
+    // driver.js puts its label inside an open dialog but always mounts the dim in <body>, which a modal
+    // dialog covers. Move the dim under the box, inside the dialog.
+    const layer = host();
+    const dim = document.querySelector(".driver-overlay");
+    if (layer !== document.body && dim && box) layer.insertBefore(dim, box);
     const r = frameRect(target);
     return { x: r.left, y: r.top, width: r.width, height: r.height };
   }
@@ -171,7 +186,7 @@ export function installOverlay(args: { driverCss: string }): void {
     dot.style.left = `${x}px`;
     dot.style.top = `${y}px`;
     dot.style.background = color;
-    document.body.appendChild(dot);
+    host().appendChild(dot);
     setTimeout(() => dot.remove(), 600);
   }
 

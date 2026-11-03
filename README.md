@@ -74,11 +74,12 @@ scenes:
 ```
 
 **Actions** (one per step): `goto`, `click`, `fill` + `value`, `press` (+ `on`), `select` + `value`,
-`check`, `uncheck`, `hover`, `scroll`, `waitFor`, `wait` (ms), `expect` (+ `text`), `highlight`. A step
-with only `say` is a narration beat.
+`check`, `uncheck`, `hover`, `scroll`, `waitFor`, `wait` (ms), `expect` (+ `text`, or `hidden: true` to
+wait for the target to disappear), `highlight`,
+`capture` + `as` (+ `pattern`). A step with only `say` is a narration beat.
 
 **Modifiers:** `say` (caption), `box` (red box, with an optional label), `note` (popover text),
-`pause` (extra ms), `secret` (on `fill`; see below).
+`pause` (extra ms), `secret` (on `fill`; see below), `offCamera` (run without recording).
 
 **Targets** are [Playwright selectors](https://playwright.dev/docs/other-locators). Prefer
 `role=…[name="…"]`, `text=…` and `[data-testid=…]`. Lint warns on brittle CSS.
@@ -97,13 +98,73 @@ steps:
     secret: true    # must be a single ${VAR}; refuses to run unless the field is type=password
 ```
 
+### Several people, captured values and off-camera work
+
+A flow that crosses people or apps (a buyer orders in a shop, a supplier refunds it in a back office)
+uses **actors**. Each actor is its own browser session for the whole run, and every scene names one:
+
+```yaml
+actors:
+  buyer:
+    baseUrl: ${SHOP_URL}
+    signIn:                                # runs off camera before the buyer's first scene
+      - goto: /sign-in
+      - fill: role=textbox[name="Email"]
+        value: ${BUYER_EMAIL}
+      - fill: "[data-testid=password]"
+        value: ${BUYER_PASSWORD}
+        secret: true
+      - click: role=button[name="Sign in"]
+  supplier:
+    baseUrl: ${ERP_URL}
+    storageState: supplier.json            # or a saved session
+
+setup:                                     # before every rehearse and record; no shell
+  - [npm, run, db:reset]
+
+scenes:
+  - id: order
+    title: The buyer orders
+    actor: buyer
+    steps:
+      - click: role=button[name="Place order"]
+      - capture: "[data-testid=order-number]"   # stored for later steps
+        as: order
+  - id: accept
+    title: The supplier accepts
+    actor: supplier
+    offCamera: true                        # moves the app along; not in the video
+    steps:
+      - click: role=link[name="{{order}}"]
+  - id: refund
+    title: The supplier refunds
+    actor: supplier
+    steps:
+      - goto: /orders
+        offCamera: true                    # this step only
+      - click: role=button[name="Refund {{order}}"]
+        say: The supplier refunds {{order}}.
+```
+
+- `capture` stores an element's text, or a form field's value. `pattern` keeps the first group of a
+  regular expression. `{{name}}` inserts it into any later string. Lint rejects a name used before it
+  is captured.
+- Waits on the app longer than `pacing.cutAfter` (default 1000 ms) become **jump cuts**, listed in
+  `manifest.json` and `REVIEW.md`.
+- `record --from <scene>` replays the earlier scenes unrecorded to rebuild app state and captures,
+  re-records that scene and every later one, and reuses the earlier scenes' saved segments. It needs
+  `setup` (or `--no-setup` to replay on the current state).
+
+[`examples/market.storyboard.yaml`](examples/market.storyboard.yaml) shows all of this against a small
+two-role app in `examples/market-app/`.
+
 **Settings** (all optional, defaults shown):
 
 ```yaml
 viewport: { width: 1280, height: 720 }
 storageState: auth.json                # Playwright storage state for a signed-in session
 captions: { cps: 15, minMs: 1500, maxLineChars: 42, maxLines: 2, band: true }
-pacing:   { afterAction: 500, boxHold: 1200, typeDelay: 45, cursorMs: 450, tail: 1000 }
+pacing:   { afterAction: 500, boxHold: 1200, typeDelay: 45, cursorMs: 450, tail: 1000, cutAfter: 1000 }
 style:    { boxColor: "#ff1f3d", boxWidth: 3, boxPadding: 3, dim: 0.35, cursor: true, chapters: true, sceneChip: false }
 ```
 
@@ -122,7 +183,13 @@ get completion in your editor.
 | `uat-reel review-pack <out-dir>` | Rebuild `review/` from an existing recording |
 | `uat-reel schema` | Print the storyboard JSON Schema |
 
-Options: `--out <dir>`, `--base-url <url>`, `--headed`, `--timeout <ms>`, `--no-post`.
+Options: `--out <dir>`, `--base-url <url>`, `--headed`, `--timeout <ms>`, `--no-post`,
+`--from <scene>` (record), `--no-setup`, `--dir <folder>` (where setup runs and relative paths
+resolve; default the storyboard's folder).
+
+Every take writes `reproduce.sh`, which reruns the whole film from the output folder:
+`bash out/<name>/reproduce.sh`. It exports the variables the take used, except secrets, which you set
+first. See [design](docs/design.md#reproduce-script).
 
 The exit code is 0 on success, 1 when a step or `expect` fails (the video is still written), and 2 for
 usage errors or an invalid storyboard.
@@ -134,8 +201,11 @@ out/<name>/
   video.mp4          captions burned into a black band under the page
   video.clean.mp4    no burned captions; soft subtitle track
   captions.srt/.vtt  sidecars
-  raw.webm           Playwright screencast
+  raw.mp4            recorded segments joined, before captions
+  scenes/            each scene's segments and events, reused by record --from
   manifest.json      every scene, cue, box and expect with timestamps
+  reproduce.sh       reruns this take: same storyboard, options, environment and tool version
+  storyboard.yaml    the storyboard as run
   failure.png        only when a step failed
   review/
     REVIEW.md        expected vs actual for every still, plus expects and timing checks

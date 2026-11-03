@@ -40,6 +40,184 @@
       "description": "Playwright storage state file for a signed-in session",
       "type": "string"
     },
+    "actors": {
+      "description": "Named browser sessions; each scene picks one with actor",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "baseUrl": {
+            "type": "string"
+          },
+          "storageState": {
+            "description": "Playwright storage state file for a signed-in session",
+            "type": "string"
+          },
+          "signIn": {
+            "description": "Steps run off camera before the actor's first scene",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "goto": {
+                  "description": "URL, absolute or relative to baseUrl / the storyboard file",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "click": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "fill": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "press": {
+                  "description": "Key or chord, e.g. Enter, Control+A",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "select": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "check": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "uncheck": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "hover": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "scroll": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "waitFor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Playwright selector, e.g. role=button[name=\"Save\"], text=Checkout, [data-testid=cart]"
+                },
+                "wait": {
+                  "description": "Milliseconds",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "expect": {
+                  "description": "Fails the recording unless the target becomes visible",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "highlight": {
+                  "description": "Red box around the target, no action",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "capture": {
+                  "description": "Store the target's text (or a form field's value) as a variable named by `as`; use it later as {{name}}",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value": {
+                  "description": "Value for fill / select",
+                  "type": "string"
+                },
+                "on": {
+                  "description": "Element to focus before press",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "description": "Text the expect target must contain",
+                  "type": "string"
+                },
+                "hidden": {
+                  "description": "expect / waitFor only: pass once the target is hidden or gone (a dialog closing, a button disappearing)",
+                  "type": "boolean"
+                },
+                "as": {
+                  "description": "capture only: the variable name",
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                },
+                "pattern": {
+                  "description": "capture only: keep the first group of this regular expression",
+                  "type": "string"
+                },
+                "secret": {
+                  "description": "fill only: value comes from an env var and must go into a password field; typed without animation",
+                  "type": "boolean"
+                },
+                "say": {
+                  "description": "Caption cue that starts at this step",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "box": {
+                  "description": "Red box around this step's target before acting; a string is its label",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  ]
+                },
+                "note": {
+                  "description": "Longer popover text under the box label",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pause": {
+                  "description": "Extra milliseconds after the step",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "offCamera": {
+                  "description": "Run this step without recording it",
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "setup": {
+      "default": [],
+      "description": "Commands (executable and arguments, no shell) run before every rehearse and record",
+      "type": "array",
+      "items": {
+        "minItems": 1,
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "acceptance": {
       "default": [],
       "type": "array",
@@ -131,6 +309,13 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "cutAfter": {
+          "default": 1000,
+          "description": "Cut waits on the app longer than this many ms from the video; 0 keeps them",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         }
       },
       "additionalProperties": false
@@ -198,6 +383,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "actor": {
+            "description": "The actor (browser session) this scene runs as",
+            "type": "string",
+            "minLength": 1
+          },
+          "offCamera": {
+            "description": "Run the scene to move the app along without recording it",
+            "type": "boolean"
           },
           "steps": {
             "minItems": 1,
@@ -271,6 +465,11 @@
                   "type": "string",
                   "minLength": 1
                 },
+                "capture": {
+                  "description": "Store the target's text (or a form field's value) as a variable named by `as`; use it later as {{name}}",
+                  "type": "string",
+                  "minLength": 1
+                },
                 "value": {
                   "description": "Value for fill / select",
                   "type": "string"
@@ -282,6 +481,19 @@
                 },
                 "text": {
                   "description": "Text the expect target must contain",
+                  "type": "string"
+                },
+                "hidden": {
+                  "description": "expect / waitFor only: pass once the target is hidden or gone (a dialog closing, a button disappearing)",
+                  "type": "boolean"
+                },
+                "as": {
+                  "description": "capture only: the variable name",
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                },
+                "pattern": {
+                  "description": "capture only: keep the first group of this regular expression",
                   "type": "string"
                 },
                 "secret": {
@@ -316,6 +528,10 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "offCamera": {
+                  "description": "Run this step without recording it",
+                  "type": "boolean"
                 }
               },
               "additionalProperties": false

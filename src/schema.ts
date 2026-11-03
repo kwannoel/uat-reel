@@ -15,6 +15,7 @@ export const ACTION_KEYS = [
   "wait",
   "expect",
   "highlight",
+  "capture",
 ] as const;
 export type ActionKey = (typeof ACTION_KEYS)[number];
 
@@ -30,6 +31,7 @@ export const TARGET_ACTIONS: ReadonlySet<ActionKey> = new Set([
   "waitFor",
   "expect",
   "highlight",
+  "capture",
 ]);
 
 const target = z
@@ -52,10 +54,23 @@ export const StepSchema = z
     wait: z.number().int().positive().optional().describe("Milliseconds"),
     expect: target.optional().describe("Fails the recording unless the target becomes visible"),
     highlight: target.optional().describe("Red box around the target, no action"),
+    capture: target
+      .optional()
+      .describe("Store the target's text (or a form field's value) as a variable named by `as`; use it later as {{name}}"),
 
     value: z.string().optional().describe("Value for fill / select"),
     on: target.optional().describe("Element to focus before press"),
     text: z.string().optional().describe("Text the expect target must contain"),
+    hidden: z
+      .boolean()
+      .optional()
+      .describe("expect / waitFor only: pass once the target is hidden or gone (a dialog closing, a button disappearing)"),
+    as: z
+      .string()
+      .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "as must be a variable name")
+      .optional()
+      .describe("capture only: the variable name"),
+    pattern: z.string().optional().describe("capture only: keep the first group of this regular expression"),
     secret: z
       .boolean()
       .optional()
@@ -68,6 +83,7 @@ export const StepSchema = z
       .describe("Red box around this step's target before acting; a string is its label"),
     note: z.string().min(1).optional().describe("Longer popover text under the box label"),
     pause: z.number().int().nonnegative().optional().describe("Extra milliseconds after the step"),
+    offCamera: z.boolean().optional().describe("Run this step without recording it"),
   })
   .strict()
   .superRefine((step, ctx) => {
@@ -90,8 +106,27 @@ export const StepSchema = z
     if (step.text !== undefined && action !== "expect") {
       ctx.addIssue({ code: "custom", message: "text only applies to expect" });
     }
+    if (step.hidden && action !== "expect" && action !== "waitFor") {
+      ctx.addIssue({ code: "custom", message: "hidden only applies to expect and waitFor" });
+    }
+    if (step.hidden && (step.text !== undefined || step.box !== undefined)) {
+      ctx.addIssue({ code: "custom", message: "a hidden expect has nothing to show; drop text and box" });
+    }
     if (step.secret && action !== "fill") {
       ctx.addIssue({ code: "custom", message: "secret only applies to fill" });
+    }
+    if (action === "capture" && step.as === undefined) {
+      ctx.addIssue({ code: "custom", message: "capture needs as: <variable name>" });
+    }
+    if ((step.as !== undefined || step.pattern !== undefined) && action !== "capture") {
+      ctx.addIssue({ code: "custom", message: "as and pattern only apply to capture" });
+    }
+    if (step.pattern !== undefined) {
+      try {
+        new RegExp(step.pattern, "u");
+      } catch {
+        ctx.addIssue({ code: "custom", message: `pattern is not a valid regular expression: ${step.pattern}` });
+      }
     }
     if (step.on !== undefined && action !== "press") {
       ctx.addIssue({ code: "custom", message: "on only applies to press" });
@@ -111,10 +146,21 @@ export const SceneSchema = z
     id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, "scene id must be kebab-case"),
     title: z.string().min(1),
     covers: z.array(z.string()).default([]).describe("Acceptance criterion ids this scene demonstrates"),
+    actor: z.string().min(1).optional().describe("The actor (browser session) this scene runs as"),
+    offCamera: z.boolean().optional().describe("Run the scene to move the app along without recording it"),
     steps: z.array(StepSchema).min(1),
   })
   .strict();
 export type Scene = z.infer<typeof SceneSchema>;
+
+export const ActorSchema = z
+  .object({
+    baseUrl: z.string().optional(),
+    storageState: z.string().optional().describe("Playwright storage state file for a signed-in session"),
+    signIn: z.array(StepSchema).optional().describe("Steps run off camera before the actor's first scene"),
+  })
+  .strict();
+export type Actor = z.infer<typeof ActorSchema>;
 
 export const StoryboardSchema = z
   .object({
@@ -126,6 +172,14 @@ export const StoryboardSchema = z
       .strict()
       .prefault({ width: 1280, height: 720 }),
     storageState: z.string().optional().describe("Playwright storage state file for a signed-in session"),
+    actors: z
+      .record(z.string().regex(/^[A-Za-z0-9_-]+$/, "actor names are letters, digits, - and _"), ActorSchema)
+      .optional()
+      .describe("Named browser sessions; each scene picks one with actor"),
+    setup: z
+      .array(z.array(z.string().min(1)).min(1))
+      .default([])
+      .describe("Commands (executable and arguments, no shell) run before every rehearse and record"),
     acceptance: z
       .array(z.object({ id: z.string().min(1), text: z.string().min(1) }).strict())
       .default([]),
@@ -146,6 +200,12 @@ export const StoryboardSchema = z
         typeDelay: z.number().int().nonnegative().default(45),
         cursorMs: z.number().int().nonnegative().default(450),
         tail: z.number().int().nonnegative().default(1000),
+        cutAfter: z
+          .number()
+          .int()
+          .nonnegative()
+          .default(1000)
+          .describe("Cut waits on the app longer than this many ms from the video; 0 keeps them"),
       })
       .strict()
       .prefault({}),

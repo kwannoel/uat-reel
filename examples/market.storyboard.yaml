@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=../schema.json
+# Two actors, a capture, an off-camera step and a jump cut. Start the app first:
+#   node examples/market-app/server.mjs 4599
+# then: MARKET_PASSWORD=demo-password node dist/cli.js record examples/market.storyboard.yaml
+title: A refunded tea order
+description: Ana orders tea, Sam refunds it, and Ana sees the refund.
+
+acceptance:
+  - id: AC1
+    text: A seller can refund a paid order
+  - id: AC2
+    text: The buyer sees the refunded amount on the order
+
+setup:
+  - [node, -e, "fetch(process.argv[1] + '/reset', { method: 'POST' }).then((r) => process.exit(r.ok ? 0 : 1))", "${MARKET_URL:-http://127.0.0.1:4599}"]
+
+actors:
+  ana:
+    baseUrl: ${MARKET_URL:-http://127.0.0.1:4599}
+    signIn:
+      - goto: /sign-in
+      - fill: role=textbox[name="Email"]
+        value: ana@example.com
+      - fill: input[name=password]
+        value: ${MARKET_PASSWORD}
+        secret: true
+      - click: role=button[name="Sign in"]
+      - expect: text=Ana (buyer)
+  sam:
+    baseUrl: ${MARKET_URL:-http://127.0.0.1:4599}
+    signIn:
+      - goto: /sign-in
+      - fill: role=textbox[name="Email"]
+        value: sam@example.com
+      - fill: input[name=password]
+        value: ${MARKET_PASSWORD}
+        secret: true
+      - click: role=button[name="Sign in"]
+      - expect: text=Sam (seller)
+
+scenes:
+  - id: order
+    title: Ana orders tea
+    actor: ana
+    steps:
+      - goto: /
+        say: Ana orders two bags of green tea.
+      - select: role=combobox[name="Quantity"]
+        value: "2"
+        box: true
+      - click: role=button[name="Place order"]
+      - capture: "[data-testid=order-number]"
+        as: order
+        box: Order number
+        say: Her order is paid. It has a number she can quote.
+
+  - id: refund
+    title: Sam refunds it
+    actor: sam
+    covers: [AC1]
+    steps:
+      - goto: /orders
+        offCamera: true
+      - click: role=button[name="Refund {{order}}"]
+        box: true
+        say: Sam can't ship {{order}}, so he refunds it.
+      - expect: "[data-testid=seller-status]"
+        text: Refunded
+        box: Refunded
+        say: The order is marked refunded.
+
+  - id: sees-refund
+    title: Ana sees the refund
+    actor: ana
+    covers: [AC2]
+    steps:
+      - goto: /orders/{{order}}
+        say: Back in the shop, Ana sees her money came back.
+      - expect: "[data-testid=status]"
+        text: Refunded $25.00
+        box: Refund

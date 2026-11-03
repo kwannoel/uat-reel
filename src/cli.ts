@@ -25,6 +25,12 @@ Options
   --headed           show the browser
   --timeout <ms>     per-action timeout (default 10000)
   --no-post          record only: skip ffmpeg (no mp4, no review pack)
+  --from <scene>     record only: replay earlier scenes unrecorded, reuse their saved takes,
+                     and record this scene and every later one
+  --no-setup         skip the storyboard's setup commands
+  --dir <folder>     where setup runs and relative paths resolve (default the storyboard's folder)
+
+Every rehearse and record writes reproduce.sh into its output folder: bash <out>/reproduce.sh reshoots it.
 `;
 
 async function main(argv: string[]): Promise<number> {
@@ -37,6 +43,9 @@ async function main(argv: string[]): Promise<number> {
       headed: { type: "boolean", default: false },
       timeout: { type: "string" },
       "no-post": { type: "boolean", default: false },
+      from: { type: "string" },
+      "no-setup": { type: "boolean", default: false },
+      dir: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", short: "v", default: false },
     },
@@ -86,6 +95,9 @@ async function main(argv: string[]): Promise<number> {
         headed: values.headed,
         timeoutMs: values.timeout ? Number(values.timeout) : undefined,
         post: !values["no-post"],
+        from: values.from,
+        setup: !values["no-setup"],
+        dir: values.dir,
         log: (line) => console.error(`uat-reel: ${line}`),
       });
       const lines = [`${manifest.ok ? "ok" : "FAILED"}: ${out}`];
