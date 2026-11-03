@@ -77,6 +77,15 @@ export async function buildReviewPack(out: string): Promise<string> {
       ? [`- Reproduce: \`bash ${manifest.reproduce.script}\` reshoots the whole film${manifest.reproduce.secrets.length ? `; set ${manifest.reproduce.secrets.join(", ")} first` : ""}`]
       : []),
     `- Result: ${manifest.ok ? "all steps and expects passed" : `**FAILED** at scene \`${manifest.error?.scene}\` step ${(manifest.error?.step ?? 0) + 1}: ${manifest.error?.message}`}`,
+    ...(manifest.takes
+      ? [
+          `- Takes: **joined from ${manifest.takes.length} runs** by \`record --from\`. Times and numbers the app generated can disagree across a join, at ${manifest.takes
+            .slice(1)
+            .map((t) => sec(t.start))
+            .join(", ")}:`,
+          ...manifest.takes.map((t) => `  - ${t.scenes.map((id) => `\`${id}\``).join(", ")} recorded ${t.recordedIn || "by an older uat-reel"}`),
+        ]
+      : []),
     `- Contact sheets: \`review/contact-NN.jpg\`, one tile every ${CONTACT_EVERY_SEC}s, timestamp top-left`,
     "",
     "## Scenes",

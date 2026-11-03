@@ -30,6 +30,8 @@ export interface Manifest {
     offCamera?: boolean;
     start: number;
     end: number;
+    /** `startedAt` of the run that recorded this scene; differs from the manifest's for a scene `record --from` reused. */
+    recordedIn: string;
   }[];
   chapters: { title: string; start: number; end: number }[];
   cues: Cue[];
@@ -45,6 +47,8 @@ export interface Manifest {
   services?: { name: string; ready: string; log: string }[];
   /** How to reshoot this take; see `reproduce.sh`. */
   reproduce?: Reproduction;
+  /** Present when `record --from` joined runs: each run's scenes, in film order. Times and numbers the app generated can disagree across a join. */
+  takes?: { recordedIn: string; scenes: string[]; start: number }[];
 }
 
 /** One scene's recording, kept under `scenes/<id>.json` so `record --from` can reuse it. Times are scene-local. */
@@ -54,6 +58,10 @@ export interface SceneTake {
   covers: string[];
   actor?: string;
   offCamera: boolean;
+  /** `startedAt` of the run that recorded it. */
+  recordedIn: string;
+  /** What this scene's `capture` steps read; a `record --from` replay must read the same. */
+  captures: Record<string, string>;
   durationMs: number;
   segments: { file: string; start: number; end: number }[];
   chapters: Manifest["chapters"];

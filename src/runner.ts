@@ -96,13 +96,15 @@ interface LiveActor {
   cursor: { x: number; y: number };
 }
 
-function emptyTake(scene: Pick<Scene, "id" | "title" | "covers" | "actor" | "offCamera">): SceneTake {
+function emptyTake(scene: Pick<Scene, "id" | "title" | "covers" | "actor" | "offCamera">, recordedIn = ""): SceneTake {
   return {
     id: scene.id,
     title: scene.title,
     covers: scene.covers,
     actor: scene.actor,
     offCamera: Boolean(scene.offCamera),
+    recordedIn,
+    captures: {},
     durationMs: 0,
     segments: [],
     chapters: [],
@@ -417,6 +419,7 @@ export async function run(opts: RunOptions): Promise<RunResult> {
             : (el as HTMLElement).innerText,
         );
         vars[step.as!] = captured(text, step.pattern);
+        take.captures[step.as!] = vars[step.as!]!;
         break;
       }
       case "expect": {
@@ -538,7 +541,7 @@ export async function run(opts: RunOptions): Promise<RunResult> {
     const replay = !rehearse && index < fromIndex;
     const onCamera = !rehearse && !replay && !scene.offCamera;
     sceneId = scene.id;
-    take = emptyTake(scene);
+    take = emptyTake(scene, manifest.startedAt);
     current = { scene: scene.id, step: -1 };
     actor = await actorFor(scene.actor ?? DEFAULT_ACTOR);
     page = actor.page;
@@ -572,6 +575,7 @@ export async function run(opts: RunOptions): Promise<RunResult> {
         current = { scene: scene.id, step: i };
         await runStep(step, preRolled && i === 0);
       }
+      if (replay) sameCaptures(opts.from!, JSON.parse(await readFile(takePath(scene.id), "utf8")) as Partial<SceneTake>, take.captures);
       await flushCue();
       if (onCamera && index === lastOnCamera) {
         await sleep(pacing().tail);
@@ -586,7 +590,7 @@ export async function run(opts: RunOptions): Promise<RunResult> {
       take.segments = camera.segments.slice(segmentsBefore);
       if (!replay) {
         if (rehearse) {
-          manifest.scenes.push({ id: scene.id, title: scene.title, covers: scene.covers, actor: scene.actor, offCamera: scene.offCamera, start, end: now() });
+          manifest.scenes.push({ id: scene.id, title: scene.title, covers: scene.covers, actor: scene.actor, offCamera: scene.offCamera, start, end: now(), recordedIn: manifest.startedAt });
           manifest.chapters.push(...take.chapters);
           manifest.cues.push(...take.cues);
           manifest.boxes.push(...take.boxes);
@@ -616,6 +620,13 @@ export async function run(opts: RunOptions): Promise<RunResult> {
     manifest.durationMs = now();
   } else {
     await assemble(sb, manifest, takePath);
+    if (manifest.takes)
+      log(
+        `warning: joined ${manifest.takes.length} runs; times and numbers the app generated may disagree at ${manifest.takes
+          .slice(1)
+          .map((t) => `${(t.start / 1000).toFixed(1)}s`)
+          .join(", ")}`,
+      );
     const segments = manifest.segments.map((s) => ({ file: s.file, ms: s.end - s.start }));
     await writeFile(join(out, "captions.srt"), toSrt(manifest.cues, sb.captions.maxLineChars));
     await writeFile(join(out, "captions.vtt"), toVtt(manifest.cues, sb.captions.maxLineChars));
@@ -687,6 +698,21 @@ async function writeReproduce(
   manifest.outputs.reproduce = "reproduce.sh";
 }
 
+/**
+ * A `record --from` replay rebuilds app state the reused footage shows. A capture that now reads
+ * differently (another order number, say) means the later scenes would film a different record.
+ */
+function sameCaptures(from: string, saved: Partial<SceneTake>, now: Record<string, string>): void {
+  if (!saved.captures) throw new Error(`--from ${from}: the saved take of ${saved.id} has no captures to check the replay against; record the whole film`);
+  for (const name of new Set([...Object.keys(saved.captures), ...Object.keys(now)])) {
+    if (saved.captures[name] !== now[name]) {
+      throw new Error(
+        `--from ${from}: replaying ${saved.id} captured ${name} ${JSON.stringify(now[name] ?? null)}, but its reused footage shows ${JSON.stringify(saved.captures[name] ?? null)}; record the whole film`,
+      );
+    }
+  }
+}
+
 /** Lays the saved takes end to end, in storyboard order, as one film timeline. */
 async function assemble(sb: Storyboard, manifest: Manifest, takePath: (id: string) => string): Promise<void> {
   let offset = 0;
@@ -701,6 +727,7 @@ async function assemble(sb: Storyboard, manifest: Manifest, takePath: (id: strin
       offCamera: take.offCamera || undefined,
       start: offset,
       end: offset + take.durationMs,
+      recordedIn: take.recordedIn ?? "",
     });
     manifest.chapters.push(...take.chapters);
     manifest.cues.push(...take.cues);
@@ -711,6 +738,13 @@ async function assemble(sb: Storyboard, manifest: Manifest, takePath: (id: strin
     offset += take.durationMs;
   }
   manifest.durationMs = offset;
+  const takes: NonNullable<Manifest["takes"]> = [];
+  for (const s of manifest.scenes) {
+    const last = takes.at(-1);
+    if (last?.recordedIn === s.recordedIn) last.scenes.push(s.id);
+    else takes.push({ recordedIn: s.recordedIn, scenes: [s.id], start: s.start });
+  }
+  if (takes.length > 1) manifest.takes = takes;
 }
 
 export async function writeManifest(out: string, manifest: Manifest): Promise<void> {

@@ -152,6 +152,11 @@ scene is at least one segment, a new segment starts after every off-camera step,
 - **Reshoots.** Each scene's segments and events are saved under `scenes/`. `record --from <scene>`
   replays the earlier scenes unrecorded and at rehearse speed, to rebuild app state and captures, then
   records the named scene and every later one, and joins them with the saved earlier segments.
+  The replay is a new run of the app, not the one the reused footage shows. Each take records its
+  run (`recordedIn`) and its captures; a replayed capture that differs from the saved one stops the
+  run, because the later scenes would film another record. What no capture covers, such as a server
+  timestamp, can still disagree, so a joined film lists its runs in `manifest.takes` and REVIEW.md,
+  and the final-video reviewer checks each join.
 - **Setup.** `setup:` lists commands (an executable and its arguments, no shell) that run before every
   rehearse and record, for example a database reset and fixture load. `--no-setup` skips them.
   `--from` needs setup, or `--no-setup` to replay on the current state deliberately.

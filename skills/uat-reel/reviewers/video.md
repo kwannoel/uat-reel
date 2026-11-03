@@ -24,15 +24,18 @@ Open **every** frame and every contact sheet. Don't sample.
    band under the page, word for word? Is the expected red box visible around the expected element?
    (A box on a step that clicks may be fading out; that's fine.) Flag every mismatch, along with
    captions that are missing, stale or out of sync.
-3. **Proof.** For each acceptance criterion, find its proof frame, the box on the scene's final
+3. **Joins.** If REVIEW.md has a `Takes:` line, the film joins runs made by `record --from`. Compare
+   what the app shows before and after each join: times, dates, record numbers and amounts of the
+   same record must agree. A mismatch is a blocker; the fix is to record the whole film.
+4. **Proof. For each acceptance criterion, find its proof frame, the box on the scene's final
    expect. Could a stakeholder read the outcome in that frame at 1280 px wide? Does it actually show
    the criterion being met?
-4. **Contamination.** Flag error toasts, spinners, broken images, framework error overlays, dev
+5. **Contamination.** Flag error toasts, spinners, broken images, framework error overlays, dev
    tools, cookie or consent banners, "localhost" or "staging" text a stakeholder would question, real
    personal data, and any token, key or secret in a URL or on screen.
-5. **Pacing.** Read the Timing section. Use the contact sheets to look for dead stretches, flashes,
+6. **Pacing.** Read the Timing section. Use the contact sheets to look for dead stretches, flashes,
    blank or white frames, and scenes that rush or drag.
-6. **Story.** If someone watched only this video, which criteria would they believe are met? Is there
+7. **Story.** If someone watched only this video, which criteria would they believe are met? Is there
    anything they could wrongly conclude?
 
 ## How to report

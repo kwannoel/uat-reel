@@ -40,7 +40,9 @@ Collect these, and ask the user for any you cannot find in the repo:
   `before` commands such as creating the database), on ports nothing else uses. Then one command films
   from nothing, and `reproduce.sh` reshoots without anyone starting the app first.
 - **Resetting state.** Put the commands that reset the app's data under `setup:`, so every rehearse and
-  record starts from the same state and `record --from <scene>` can reshoot one scene.
+  record starts from the same state and `record --from <scene>` can reshoot one scene. A `--from`
+  reshoot joins footage from two runs of the app, so if the app shows times or generated ids, record
+  the whole film for the final take instead.
 - **Tooling.** Node 20+, `ffmpeg` with libass (`ffmpeg -filters | grep subtitles`), and then:
   ```bash
   npm i -D uat-reel && npx playwright install chromium

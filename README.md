@@ -191,7 +191,10 @@ scenes:
   one you started. Services stop after the run, even a failed one; logs go to `services/<name>.log`.
 - `record --from <scene>` replays the earlier scenes unrecorded to rebuild app state and captures,
   re-records that scene and every later one, and reuses the earlier scenes' saved segments. It needs
-  `setup` (or `--no-setup` to replay on the current state).
+  `setup` (or `--no-setup` to replay on the current state). A replay whose `capture` reads differently
+  from the reused footage stops the run. The film then joins two runs, so times and numbers the app
+  generated can disagree across the join; `manifest.json` lists the runs under `takes` and REVIEW.md
+  flags them. When the app shows times or ids a capture doesn't cover, record the whole film.
 
 [`examples/market.storyboard.yaml`](examples/market.storyboard.yaml) shows all of this against a small
 two-role app in `examples/market-app/`.

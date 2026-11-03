@@ -47,6 +47,11 @@ describe.skipIf(!hasFfmpeg())("two actors, end to end", () => {
     expect(existsSync(join(out, "video.mp4"))).toBe(true);
     const saved = JSON.parse(readFileSync(join(out, "manifest.json"), "utf8")) as Manifest;
     expect(saved.scenes).toHaveLength(3);
+    // The reused scenes come from the first run, so the join is stated for the reviewer.
+    expect(saved.takes?.map((t) => t.scenes)).toEqual([["order", "refund"], ["sees-refund"]]);
+    expect(saved.takes?.[0]!.recordedIn).toBe(manifest.startedAt);
+    expect(saved.takes?.[1]!.recordedIn).toBe(again.manifest.startedAt);
+    expect(readFileSync(join(out, "review/REVIEW.md"), "utf8")).toContain("- Takes: **joined from 2 runs**");
   });
 
   it("reshoots the whole film from reproduce.sh alone", { timeout: 240_000 }, async () => {
@@ -80,6 +85,15 @@ describe.skipIf(!hasFfmpeg())("two actors, end to end", () => {
     expect(second.cues.map((c) => c.text)).toEqual(first.cues.map((c) => c.text));
     expect(second.reproduce?.sha256).toBe(first.reproduce?.sha256);
     expect(existsSync(join(again, "video.mp4"))).toBe(true);
+    expect(second.takes).toBeUndefined();
+  });
+
+  it("refuses a reshoot whose replay films a different record", { timeout: 240_000 }, async () => {
+    // Without the reset, replaying the order scene places ORD-1002 while the reused footage shows ORD-1001.
+    const { manifest } = await run({ storyboard, out, mode: "record", from: "sees-refund", services: false, setup: false });
+    expect(manifest.ok).toBe(false);
+    expect(manifest.error?.scene).toBe("order");
+    expect(manifest.error?.message).toContain('captured order "ORD-1002", but its reused footage shows "ORD-1001"');
   });
 });
 
