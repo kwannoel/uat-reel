@@ -8,9 +8,9 @@
 Built on [Playwright](https://playwright.dev) (actions and recording) and
 [driver.js](https://driverjs.com) (spotlight and labels), with ffmpeg doing the captions.
 
-[![A guest tries to check out with missing details: the cursor clicks Place order, the error is boxed in red and labelled, and the caption explains it in a band underneath](docs/media/checkout.webp)](docs/media/checkout.mp4)
+[![A guest tries to check out with missing details: the cursor clicks Place order, the error is boxed in red and labelled, and the caption explains it in a band underneath](docs/media/checkout.webp)](docs/media/checkout.mp4?raw=true)
 
-▶ [Watch the whole film](docs/media/checkout.mp4) (48 s), recorded from
+⬇ [Download the whole film](docs/media/checkout.mp4?raw=true) (MP4, 48 s), recorded from
 [`examples/demo.storyboard.yaml`](examples/demo.storyboard.yaml).
 
 - **Repeatable.** The video is a script, so you re-record it on every release with one command.
@@ -106,9 +106,9 @@ steps:
 A flow that crosses people or apps (a buyer orders in a shop, a supplier refunds it in a back office)
 uses **actors**. Each actor is its own browser session for the whole run, and every scene names one:
 
-[![Sam, the seller, refunds Ana's captured order ORD-1001; a jump cut skips the slow refund request, and the Refunded state is boxed in red](docs/media/refund.webp)](docs/media/refund.mp4)
+[![Sam, the seller, refunds Ana's captured order ORD-1001; a jump cut skips the slow refund request, and the Refunded state is boxed in red](docs/media/refund.webp)](docs/media/refund.mp4?raw=true)
 
-▶ [Watch the whole film](docs/media/refund.mp4) (25 s): Ana orders, Sam refunds, Ana sees the refund.
+⬇ [Download the whole film](docs/media/refund.mp4?raw=true) (MP4, 25 s): Ana orders, Sam refunds, Ana sees the refund.
 Recorded from [`examples/market.storyboard.yaml`](examples/market.storyboard.yaml).
 
 ```yaml
