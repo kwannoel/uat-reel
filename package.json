@@ -31,7 +31,8 @@
     "build": "tsc -p tsconfig.json && chmod +x dist/cli.js && node dist/cli.js schema > schema.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "readme-media": "node scripts/readme-media.mjs"
   },
   "keywords": [
     "playwright",
@@ -53,5 +54,10 @@
     "@types/node": "^20.19.43",
     "typescript": "^7.0.2",
     "vitest": "^4.1.12"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kwannoel/uat-reel.git"
+  },
+  "homepage": "https://github.com/kwannoel/uat-reel#readme"
 }

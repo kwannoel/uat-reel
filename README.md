@@ -8,7 +8,10 @@
 Built on [Playwright](https://playwright.dev) (actions and recording) and
 [driver.js](https://driverjs.com) (spotlight and labels), with ffmpeg doing the captions.
 
-![Proof frame: the order confirmation boxed in red, labelled, with the caption in a band underneath](docs/img/proof-frame.jpg)
+[![A guest tries to check out with missing details: the cursor clicks Place order, the error is boxed in red and labelled, and the caption explains it in a band underneath](docs/media/checkout.webp)](docs/media/checkout.mp4)
+
+▶ [Watch the whole film](docs/media/checkout.mp4) (48 s), recorded from
+[`examples/demo.storyboard.yaml`](examples/demo.storyboard.yaml).
 
 - **Repeatable.** The video is a script, so you re-record it on every release with one command.
 - **Evidence, not a demo.** `expect` steps are assertions. If the app misbehaves, the recording fails
@@ -102,6 +105,11 @@ steps:
 
 A flow that crosses people or apps (a buyer orders in a shop, a supplier refunds it in a back office)
 uses **actors**. Each actor is its own browser session for the whole run, and every scene names one:
+
+[![Sam, the seller, refunds Ana's captured order ORD-1001; a jump cut skips the slow refund request, and the Refunded state is boxed in red](docs/media/refund.webp)](docs/media/refund.mp4)
+
+▶ [Watch the whole film](docs/media/refund.mp4) (25 s): Ana orders, Sam refunds, Ana sees the refund.
+Recorded from [`examples/market.storyboard.yaml`](examples/market.storyboard.yaml).
 
 ```yaml
 actors:
@@ -213,8 +221,6 @@ out/<name>/
     contact-NN.jpg   4×4 grids, one tile every 2 s, timestamped
 ```
 
-![Validation error frame with box, label and note](docs/img/validation-frame.jpg)
-
 ## The agent skill
 
 [`skills/uat-reel/SKILL.md`](skills/uat-reel/SKILL.md) is a plain skill folder. Copy it into
@@ -258,6 +264,11 @@ if (!manifest.ok) throw new Error(manifest.error?.message);
   accurate to roughly one frame, which is fine for captions but not for frame-exact editing.
 
 See [docs/design.md](docs/design.md) for the design.
+
+## Developing
+
+`npm run build`, then `npm test`; the end-to-end tests need ffmpeg. `npm run readme-media` re-records
+the example films and rewrites the clips in `docs/media/`.
 
 ## License
 
