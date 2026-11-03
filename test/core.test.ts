@@ -389,3 +389,25 @@ scenes:
     expect(execFileSync("/bin/bash", [file], { encoding: "utf8", env: { PATH: process.env.PATH } })).toBe("O'Brien $HOME");
   });
 });
+
+describe("services lint", () => {
+  it("rejects duplicate names and shared ready URLs", () => {
+    const sb = parseStoryboard(
+      base(
+        "  - id: s\n    title: S\n    covers: [AC1]\n    steps:\n      - goto: /\n        say: Hello there.",
+        `services:
+  - { name: app, run: [a], ready: "http://127.0.0.1:1/" }
+  - { name: app, run: [b], ready: "http://127.0.0.1:1/" }`,
+      ),
+    );
+    const errors = lint(sb).filter((f) => f.level === "error").map((f) => f.message);
+    expect(errors).toContain("duplicate service name");
+    expect(errors).toContain("another service is also ready at http://127.0.0.1:1/");
+  });
+
+  it("requires ready to be a URL", () => {
+    expect(() => parseStoryboard(base("  - id: s\n    title: S\n    steps:\n      - goto: /", "services:\n  - { name: app, run: [a], ready: soon }"))).toThrow(
+      /services\[0\]\.ready/,
+    );
+  });
+});

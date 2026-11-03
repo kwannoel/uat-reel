@@ -18,7 +18,7 @@ describe.skipIf(!hasFfmpeg())("two actors, end to end", () => {
   let out: string;
   beforeAll(async () => {
     app = await startMarketApp(0);
-    process.env.MARKET_URL = app.url;
+    process.env.MARKET_PORT = new URL(app.url).port;
     process.env.MARKET_PASSWORD = "demo-password";
     out = join(await mkdtemp(join(tmpdir(), "uat-reel-")), "market");
   });
@@ -27,7 +27,8 @@ describe.skipIf(!hasFfmpeg())("two actors, end to end", () => {
   });
 
   it("records separate sessions with captures, an off-camera step and a jump cut, then reshoots one scene", { timeout: 240_000 }, async () => {
-    const { manifest } = await run({ storyboard, out, mode: "record" });
+    // The app runs in this process, so the storyboard's service is not started.
+    const { manifest } = await run({ storyboard, out, mode: "record", services: false });
     expect(manifest.error).toBeUndefined();
     expect(manifest.scenes.map((s) => s.actor)).toEqual(["ana", "sam", "ana"]);
     expect(manifest.cuts.length).toBeGreaterThan(0);
@@ -39,7 +40,7 @@ describe.skipIf(!hasFfmpeg())("two actors, end to end", () => {
     expect(readFileSync(join(out, "review/REVIEW.md"), "utf8")).toMatch(/## Jump cuts\n\n[^\n]*\n\n- \d/);
 
     const kept = statSync(join(out, "scenes/order-001.webm")).mtimeMs;
-    const again = await run({ storyboard, out, mode: "record", from: "sees-refund" });
+    const again = await run({ storyboard, out, mode: "record", from: "sees-refund", services: false });
     expect(again.manifest.ok).toBe(true);
     expect(statSync(join(out, "scenes/order-001.webm")).mtimeMs).toBe(kept);
     expect(again.manifest.cues.map((c) => c.text)).toContain("Sam can't ship ORD-1001, so he refunds it.");
@@ -50,12 +51,13 @@ describe.skipIf(!hasFfmpeg())("two actors, end to end", () => {
 
   it("reshoots the whole film from reproduce.sh alone", { timeout: 240_000 }, async () => {
     const script = readFileSync(join(out, "reproduce.sh"), "utf8");
-    expect(script).toContain(`export MARKET_URL='${app.url}'`);
+    expect(script).toContain(`export MARKET_PORT='${new URL(app.url).port}'`);
+    expect(script).toContain("'--no-services'");
     expect(script).not.toContain("demo-password");
     expect(script).not.toContain("--from");
 
-    // The script must supply MARKET_URL itself and ask for the secret.
-    const { MARKET_URL: _, MARKET_PASSWORD: __, ...env } = process.env;
+    // The script must supply MARKET_PORT itself and ask for the secret.
+    const { MARKET_PORT: _, MARKET_PASSWORD: __, ...env } = process.env;
     const bash = (args: string[], extra: Record<string, string> = {}) =>
       new Promise<{ code: number | null; stderr: string }>((done) => {
         // Async: the market app answers from this process.
@@ -78,6 +80,33 @@ describe.skipIf(!hasFfmpeg())("two actors, end to end", () => {
     expect(second.cues.map((c) => c.text)).toEqual(first.cues.map((c) => c.text));
     expect(second.reproduce?.sha256).toBe(first.reproduce?.sha256);
     expect(existsSync(join(again, "video.mp4"))).toBe(true);
+  });
+});
+
+describe("storyboard services", () => {
+  it("starts the market app, rehearses against it, and stops it", { timeout: 120_000 }, async () => {
+    const { createServer } = await import("node:net");
+    const port = await new Promise<number>((done) => {
+      const server = createServer().listen(0, "127.0.0.1", () => {
+        const { port } = server.address() as { port: number };
+        server.close(() => done(port));
+      });
+    });
+    const saved = { port: process.env.MARKET_PORT, password: process.env.MARKET_PASSWORD };
+    process.env.MARKET_PORT = String(port);
+    process.env.MARKET_PASSWORD = "demo-password";
+    try {
+      const out = join(await mkdtemp(join(tmpdir(), "uat-reel-")), "market-rehearse");
+      const { manifest } = await run({ storyboard, out, mode: "rehearse" });
+      expect(manifest.ok, manifest.error?.message).toBe(true);
+      expect(manifest.services).toEqual([{ name: "market", ready: `http://127.0.0.1:${port}/`, log: "services/market.log" }]);
+      expect(existsSync(join(out, "services", "market.log"))).toBe(true);
+      const { answers } = await import("../src/services.js");
+      expect(await answers(`http://127.0.0.1:${port}/`)).toBe(false);
+    } finally {
+      process.env.MARKET_PORT = saved.port;
+      process.env.MARKET_PASSWORD = saved.password;
+    }
   });
 });
 

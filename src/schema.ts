@@ -162,6 +162,21 @@ export const ActorSchema = z
   .strict();
 export type Actor = z.infer<typeof ActorSchema>;
 
+const CommandSchema = z.array(z.string().min(1)).min(1);
+
+export const ServiceSchema = z
+  .object({
+    name: z.string().regex(/^[A-Za-z0-9_-]+$/, "service names are letters, digits, - and _"),
+    run: CommandSchema.describe("Executable and arguments, no shell; runs until the film is done"),
+    cwd: z.string().optional().describe("Working folder, relative to the storyboard's folder (or --dir)"),
+    env: z.record(z.string(), z.string()).optional().describe("Added to the inherited environment"),
+    ready: z.url().describe("Answers any HTTP response once the service is up; must not answer before it starts"),
+    timeout: z.number().int().positive().default(120_000).describe("Milliseconds to wait for ready"),
+    before: z.array(CommandSchema).default([]).describe("Commands run once before this service starts"),
+  })
+  .strict();
+export type Service = z.infer<typeof ServiceSchema>;
+
 export const StoryboardSchema = z
   .object({
     title: z.string().min(1),
@@ -176,10 +191,14 @@ export const StoryboardSchema = z
       .record(z.string().regex(/^[A-Za-z0-9_-]+$/, "actor names are letters, digits, - and _"), ActorSchema)
       .optional()
       .describe("Named browser sessions; each scene picks one with actor"),
-    setup: z
-      .array(z.array(z.string().min(1)).min(1))
+    services: z
+      .array(ServiceSchema)
       .default([])
-      .describe("Commands (executable and arguments, no shell) run before every rehearse and record"),
+      .describe("Apps started before setup and stopped after the run"),
+    setup: z
+      .array(CommandSchema)
+      .default([])
+      .describe("Commands (executable and arguments, no shell) run before every rehearse and record, once services answer"),
     acceptance: z
       .array(z.object({ id: z.string().min(1), text: z.string().min(1) }).strict())
       .default([]),

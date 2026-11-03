@@ -127,8 +127,15 @@ actors:
     baseUrl: ${ERP_URL}
     storageState: supplier.json            # or a saved session
 
-setup:                                     # before every rehearse and record; no shell
-  - [npm, run, db:reset]
+services:                                  # started first, stopped after; see below
+  - name: shop
+    run: [npm, run, dev]
+    env: { PORT: "3000" }
+    ready: http://127.0.0.1:3000/
+    before: [[npm, run, db:reset]]         # once, before this service starts
+
+setup:                                     # once the services answer; no shell
+  - [npm, run, seed]
 
 scenes:
   - id: order
@@ -159,6 +166,10 @@ scenes:
   is captured.
 - Waits on the app longer than `pacing.cutAfter` (default 1000 ms) become **jump cuts**, listed in
   `manifest.json` and `REVIEW.md`.
+- `services` start the app being filmed, so one command films from nothing. Each runs its `before`
+  commands, starts, and must answer at `ready` within `timeout` (default 120 s). If a `ready` URL
+  already answers, the run stops rather than film someone else's app; `--no-services` films against
+  one you started. Services stop after the run, even a failed one; logs go to `services/<name>.log`.
 - `record --from <scene>` replays the earlier scenes unrecorded to rebuild app state and captures,
   re-records that scene and every later one, and reuses the earlier scenes' saved segments. It needs
   `setup` (or `--no-setup` to replay on the current state).
@@ -192,7 +203,7 @@ get completion in your editor.
 | `uat-reel schema` | Print the storyboard JSON Schema |
 
 Options: `--out <dir>`, `--base-url <url>`, `--headed`, `--timeout <ms>`, `--no-post`,
-`--from <scene>` (record), `--no-setup`, `--dir <folder>` (where setup runs and relative paths
+`--from <scene>` (record), `--no-setup`, `--no-services`, `--dir <folder>` (where setup runs and relative paths
 resolve; default the storyboard's folder).
 
 Every take writes `reproduce.sh`, which reruns the whole film from the output folder:
@@ -211,6 +222,7 @@ out/<name>/
   captions.srt/.vtt  sidecars
   raw.mp4            recorded segments joined, before captions
   scenes/            each scene's segments and events, reused by record --from
+  services/          one log per storyboard service
   manifest.json      every scene, cue, box and expect with timestamps
   reproduce.sh       reruns this take: same storyboard, options, environment and tool version
   storyboard.yaml    the storyboard as run

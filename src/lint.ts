@@ -28,6 +28,15 @@ export function lint(sb: Storyboard): LintFinding[] {
   const captured = new Set<string>();
   const actorNames = Object.keys(sb.actors ?? {});
 
+  const serviceNames = new Set<string>();
+  const readyUrls = new Set<string>();
+  for (const service of sb.services) {
+    if (serviceNames.has(service.name)) err(`services.${service.name}`, "duplicate service name");
+    if (readyUrls.has(service.ready)) err(`services.${service.name}`, `another service is also ready at ${service.ready}`);
+    serviceNames.add(service.name);
+    readyUrls.add(service.ready);
+  }
+
   if (sb.scenes.every((scene) => scene.offCamera)) err("scenes", "every scene is off camera, so nothing is recorded");
   for (const [name, actor] of Object.entries(sb.actors ?? {})) {
     (actor.signIn ?? []).forEach((step, i) => {

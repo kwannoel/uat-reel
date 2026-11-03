@@ -41,6 +41,8 @@ export interface Manifest {
   /** Recorded segments in film order; joined into `outputs.raw`. */
   segments: { file: string; start: number; end: number; scene: string }[];
   outputs: Record<string, string>;
+  /** Services this run started; each one's output is in `log`. */
+  services?: { name: string; ready: string; log: string }[];
   /** How to reshoot this take; see `reproduce.sh`. */
   reproduce?: Reproduction;
 }

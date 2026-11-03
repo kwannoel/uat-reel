@@ -156,6 +156,33 @@ scene is at least one segment, a new segment starts after every off-camera step,
   rehearse and record, for example a database reset and fixture load. `--no-setup` skips them.
   `--from` needs setup, or `--no-setup` to replay on the current state deliberately.
 
+## Services
+
+A storyboard can start the app it films, so one command films from nothing and `reproduce.sh` needs
+no stack running first.
+
+```yaml
+services:
+  - name: api
+    run: [npm, --workspace, apps/api, exec, --, tsx, src/main.ts]
+    cwd: ../..                      # relative to the storyboard's folder (or --dir)
+    env: { PORT: "4431", DATABASE_URL: "${FILM_DATABASE_URL}" }
+    ready: http://127.0.0.1:4431/
+    before:                         # once, before this service starts
+      - [env, "DATABASE_URL=${FILM_DATABASE_URL}", npm, run, db:reset]
+```
+
+- **Order.** For each service in order: its `before` commands, then start it, then wait until `ready`
+  answers any HTTP response (default `timeout` 120 s). Then `setup`, then the scenes. A service that
+  exits while starting fails the run with the end of its log.
+- **Never someone else's app.** If a `ready` URL already answers before its service starts, the run
+  stops: something else holds that port. `--no-services` films against an app you started yourself
+  (and skips `before`).
+- **Stopping.** Every service runs in its own process group with no shell. After the run, passed or
+  failed, or on Ctrl-C, uat-reel sends the group SIGTERM, then SIGKILL after 5 s.
+- **Logs.** Each service's output goes to `services/<name>.log` in the output folder.
+- Commands are an executable and its arguments, like `setup`. `env` adds to the inherited environment.
+
 ## Reproduce script
 
 Every rehearse and record writes `reproduce.sh` and `storyboard.yaml` into its output folder, so the
@@ -164,7 +191,7 @@ take can be rerun from the folder alone, after the storyboard has moved on.
 - `storyboard.yaml` is the storyboard source as run: env references unexpanded, so it holds no secret.
 - `reproduce.sh` reruns the same command (`record` or `rehearse`, never `--from`: it always reshoots the
   whole film) on that copy, with the options that changed the take (`--base-url`, `--timeout`,
-  `--no-post`, `--no-setup`). Extra arguments pass through, and a later `--out` wins.
+  `--no-post`, `--no-setup`, `--no-services`). Extra arguments pass through, and a later `--out` wins.
 - **Folder.** Setup commands, relative URLs and `storageState` resolve against the storyboard's
   folder, recorded relative to the script so a checkout in another place works. `--dir <folder>` sets
   it; `UAT_REEL_DIR` overrides it in the script.

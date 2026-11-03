@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../schema.json
-# Two actors, a capture, an off-camera step and a jump cut. Start the app first:
-#   node examples/market-app/server.mjs 4599
-# then: MARKET_PASSWORD=demo-password node dist/cli.js record examples/market.storyboard.yaml
+# Two actors, a capture, an off-camera step and a jump cut. The storyboard starts its own app:
+#   MARKET_PASSWORD=demo-password node dist/cli.js record examples/market.storyboard.yaml
+# MARKET_PORT (default 4599) picks the port.
 title: A refunded tea order
 description: Ana orders tea, Sam refunds it, and Ana sees the refund.
 
@@ -11,12 +11,17 @@ acceptance:
   - id: AC2
     text: The buyer sees the refunded amount on the order
 
+services:
+  - name: market
+    run: [node, market-app/server.mjs, "${MARKET_PORT:-4599}"]
+    ready: http://127.0.0.1:${MARKET_PORT:-4599}/
+
 setup:
-  - [node, -e, "fetch(process.argv[1] + '/reset', { method: 'POST' }).then((r) => process.exit(r.ok ? 0 : 1))", "${MARKET_URL:-http://127.0.0.1:4599}"]
+  - [node, -e, "fetch(process.argv[1] + '/reset', { method: 'POST' }).then((r) => process.exit(r.ok ? 0 : 1))", "http://127.0.0.1:${MARKET_PORT:-4599}"]
 
 actors:
   ana:
-    baseUrl: ${MARKET_URL:-http://127.0.0.1:4599}
+    baseUrl: http://127.0.0.1:${MARKET_PORT:-4599}
     signIn:
       - goto: /sign-in
       - fill: role=textbox[name="Email"]
@@ -27,7 +32,7 @@ actors:
       - click: role=button[name="Sign in"]
       - expect: text=Ana (buyer)
   sam:
-    baseUrl: ${MARKET_URL:-http://127.0.0.1:4599}
+    baseUrl: http://127.0.0.1:${MARKET_PORT:-4599}
     signIn:
       - goto: /sign-in
       - fill: role=textbox[name="Email"]

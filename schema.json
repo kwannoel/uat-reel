@@ -205,9 +205,77 @@
         "additionalProperties": false
       }
     },
+    "services": {
+      "default": [],
+      "description": "Apps started before setup and stopped after the run",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "run": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Executable and arguments, no shell; runs until the film is done"
+          },
+          "cwd": {
+            "description": "Working folder, relative to the storyboard's folder (or --dir)",
+            "type": "string"
+          },
+          "env": {
+            "description": "Added to the inherited environment",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "ready": {
+            "type": "string",
+            "format": "uri",
+            "description": "Answers any HTTP response once the service is up; must not answer before it starts"
+          },
+          "timeout": {
+            "default": 120000,
+            "description": "Milliseconds to wait for ready",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "before": {
+            "default": [],
+            "description": "Commands run once before this service starts",
+            "type": "array",
+            "items": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "required": [
+          "name",
+          "run",
+          "ready"
+        ],
+        "additionalProperties": false
+      }
+    },
     "setup": {
       "default": [],
-      "description": "Commands (executable and arguments, no shell) run before every rehearse and record",
+      "description": "Commands (executable and arguments, no shell) run before every rehearse and record, once services answer",
       "type": "array",
       "items": {
         "minItems": 1,

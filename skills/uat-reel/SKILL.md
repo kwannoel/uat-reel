@@ -36,6 +36,9 @@ Collect these, and ask the user for any you cannot find in the repo:
   office), give each its own `actors:` entry and set `actor:` on every scene. Steps another person takes
   that the video only mentions go in an `offCamera: true` scene. Use `capture` + `{{name}}` to follow
   the same record (an order number) across actors instead of picking "the first row".
+- **Starting the app.** Declare the servers the film needs under `services:` (command, `ready` URL,
+  `before` commands such as creating the database), on ports nothing else uses. Then one command films
+  from nothing, and `reproduce.sh` reshoots without anyone starting the app first.
 - **Resetting state.** Put the commands that reset the app's data under `setup:`, so every rehearse and
   record starts from the same state and `record --from <scene>` can reshoot one scene.
 - **Tooling.** Node 20+, `ffmpeg` with libass (`ffmpeg -filters | grep subtitles`), and then:

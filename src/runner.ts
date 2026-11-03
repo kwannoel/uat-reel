@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -15,6 +14,7 @@ import type { Manifest, Rect, SceneTake } from "./manifest.js";
 import { burnCaptions, hasFfmpeg, joinSegments, softCaptions } from "./media.js";
 import { installOverlay } from "./overlay-page.js";
 import { buildReviewPack } from "./reviewpack.js";
+import { runCommands, startServices, type RunningServices } from "./services.js";
 import { ffmpegVersion, isSecretEnv, playwrightVersion, reproduceScript, toolCommit } from "./reproduce.js";
 import { actionOf, targetOf, type Actor, type Scene, type Step, type Storyboard } from "./schema.js";
 import { parse } from "yaml";
@@ -38,6 +38,8 @@ export interface RunOptions {
   setup?: boolean;
   /** Where setup runs and relative paths resolve (default the storyboard's folder). */
   dir?: string;
+  /** Start the storyboard's services (default true); false films an app already running. */
+  services?: boolean;
   log?: (line: string) => void;
 }
 
@@ -84,19 +86,6 @@ async function driverAssets(): Promise<{ js: string; css: string }> {
     readFile(join(dist, "driver.css"), "utf8"),
   ]);
   return { js, css };
-}
-
-/** Runs setup commands in order. Async, so an app served from this same process keeps answering. */
-async function runSetup(commands: string[][], cwd: string, log: (line: string) => void): Promise<void> {
-  for (const [command, ...args] of commands) {
-    const line = [command, ...args].join(" ");
-    log(`setup: ${line}`);
-    await new Promise<void>((done, fail) => {
-      const child = spawn(command!, args, { cwd, stdio: ["ignore", 2, 2] });
-      child.on("error", (err) => fail(new Error(`setup command failed (${err.message}): ${line}`)));
-      child.on("close", (code) => (code === 0 ? done() : fail(new Error(`setup command failed (exit ${code}): ${line}`))));
-    });
-  }
 }
 
 interface LiveActor {
@@ -182,7 +171,14 @@ export async function run(opts: RunOptions): Promise<RunResult> {
   }
   await mkdir(join(out, rehearse ? "shots" : "scenes"), { recursive: true });
 
-  if (opts.setup !== false) await runSetup(sb.setup, root, log);
+  let services: RunningServices | undefined;
+  try {
+    if (opts.services !== false) services = await startServices(sb.services, { root, out, log });
+    if (opts.setup !== false) await runCommands(sb.setup, root, log);
+  } catch (err) {
+    await services?.stop();
+    throw err;
+  }
 
   const actorSpecs: Record<string, Actor> = sb.actors ?? {
     [DEFAULT_ACTOR]: { baseUrl: sb.baseUrl, storageState: sb.storageState },
@@ -213,6 +209,9 @@ export async function run(opts: RunOptions): Promise<RunResult> {
     cuts: [],
     segments: [],
     outputs: {},
+    ...(services && sb.services.length
+      ? { services: sb.services.map((sv) => ({ name: sv.name, ready: sv.ready, log: `services/${sv.name}.log` })) }
+      : {}),
   };
 
   let sceneId = "";
@@ -230,7 +229,10 @@ export async function run(opts: RunOptions): Promise<RunResult> {
   const pacing = () => (quick() ? FAST : sb.pacing);
 
   const { js, css } = await driverAssets();
-  const browser = await chromium.launch({ headless: !opts.headed });
+  const browser = await chromium.launch({ headless: !opts.headed }).catch(async (err) => {
+    await services?.stop();
+    throw err;
+  });
   const actors = new Map<string, LiveActor>();
   const vars: Record<string, string> = {};
 
@@ -607,6 +609,7 @@ export async function run(opts: RunOptions): Promise<RunResult> {
     await camera.cut().catch(() => {});
     for (const a of actors.values()) await a.context.close().catch(() => {});
     await browser.close();
+    await services?.stop();
   }
 
   if (rehearse) {
@@ -656,6 +659,7 @@ async function writeReproduce(
     ...(opts.timeoutMs ? ["--timeout", String(opts.timeoutMs)] : []),
     ...(opts.mode === "record" && opts.post === false ? ["--no-post"] : []),
     ...(opts.setup === false ? ["--no-setup"] : []),
+    ...(opts.services === false ? ["--no-services"] : []),
   ];
   manifest.reproduce = {
     script: "reproduce.sh",
